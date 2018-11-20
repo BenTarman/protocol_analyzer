@@ -115,10 +115,21 @@ void process_transport_tcp(const u_char* packet, resultsC* results, int length)
 {
 	//uint8_t t = (int)(packet[12] - (packet[12]%16)) / 4;
 	uint8_t data_offset = packet[12] >> 4;
-
 	results->newTCP(length - data_offset);
-	printf("%d\n", data_offset);
 
+
+	uint16_t src = ((uint16_t)packet[0] << 8) | packet[1];
+	uint16_t dst = ((uint16_t)packet[2] << 8) | packet[3];
+
+	//place source and destination port numbers in results
+	results->newSrcTCP(src);
+	results->newDstTCP(dst);
+
+	//get syn and fin bits and increment if exist
+	uint8_t syn_bit = packet[13] & 0x02;
+	uint8_t fin_bit = packet[13] & 0x01;
+	if (syn_bit) results->incrementSynCount();
+	if (fin_bit) results->incrementFinCount();
 }
 
 
