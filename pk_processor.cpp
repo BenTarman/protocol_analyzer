@@ -6,6 +6,7 @@
 
 void process_network_ipv4(const u_char*, resultsC*, size_t);
 void process_transport_tcp(const u_char*, resultsC*, int);
+void process_transport_udp(const u_char*, resultsC*, int);
 
 // ****************************************************************************
 // * pk_processor()
@@ -52,6 +53,22 @@ void pk_processor(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *
 				process_network_ipv4(datagram, results, pkthdr->len);
 			}
 		}
+		else
+		{
+			results->newIEEE(42); //TODO: fix size
+
+		}
+
+//int test = (int)packet[6]*pow(255, 5) + packet[7]*pow(255, 4) + packet[8]*pow(255, 3) + packet[9]*pow(255, 2) + packet[10]*pow(255, 1) + packet[11];
+
+		uint8_t MAC_dest = packet[1] >> 2; //first 6 bits
+		uint8_t MAC_src = (((uint8_t)packet[1] & 3) << 4) | (packet[2] >> 4);
+
+    results->newSrcMac(MAC_src);
+    results->newDstMac(MAC_dest);
+
+
+
 
 		printf("\n\n");
 }
@@ -66,9 +83,6 @@ void process_network_ipv4(const u_char *datagram, resultsC* results, size_t data
 	results->newIPv4(length);
 
 	uint16_t transport_protocol = (uint16_t)datagram[9];
-
-
-				
 
 	//on transport layer we call it a packet i think
 	u_char* packet = (u_char*)malloc(data_length* sizeof(u_char));
@@ -89,15 +103,13 @@ void process_network_ipv4(const u_char *datagram, resultsC* results, size_t data
 	//TCP
 	else if (transport_protocol == 6)
 	{
-
 		process_transport_tcp(packet, results, length);
-
 	}
 
 	//UDP
 	else if (transport_protocol == 17)
 	{
-
+		process_transport_udp(packet, results, length);
 	}
 
 	//...?
@@ -133,6 +145,19 @@ void process_transport_tcp(const u_char* packet, resultsC* results, int length)
 }
 
 
+void process_transport_udp(const u_char* packet, resultsC* results, int length)
+{
+
+	//8 bit header doesn't count i think idk
+	results->newUDP(length - 8);
+	
+	uint16_t src = ((uint16_t)packet[0] << 8) | packet[1];
+	uint16_t dst = ((uint16_t)packet[2] << 8) | packet[3];
+
+	//place source and destination port numbers in results
+	results->newSrcUDP(src);
+	results->newDstUDP(dst);
+}
 
 
 
