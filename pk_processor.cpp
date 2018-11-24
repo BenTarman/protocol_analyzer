@@ -21,15 +21,13 @@ void pk_processor(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *
     DEBUG << "Processing packet #" << results->packetCount() << ENDL;
     char s[256]; 
 		bzero(s,256); bcopy(ctime(&(pkthdr->ts.tv_sec)),s,strlen(ctime(&(pkthdr->ts.tv_sec)))-1);
-
     TRACE << "\tPacket timestamp is " << s;
     TRACE << "\tPacket capture length is " << pkthdr->caplen ;
-    TRACE << "\tPacket physical length is " << pkthdr->len ;
-
-		
-		//see if we doing ethernet or ieee
-	//	int ethernetByteSize = (int)packet[12]*256 + (int)packet[13];
-		//length in ieee is always less than 1500 bytes
+    TRACE << "\tPacket physical length is " << pkthdr->len;
+	
+		// see if we doing ethernet or ieee
+		// int ethernetByteSize = (int)packet[12]*256 + (int)packet[13];
+		// length in ieee is always less than 1500 bytes
 		uint16_t ethernetByteSize = ((uint16_t)packet[12] << 8) | packet[13];
 
 		if (ethernetByteSize > 1500)
@@ -55,24 +53,16 @@ void pk_processor(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *
 		}
 		else
 		{
-			results->newIEEE(42); //TODO: fix size
-
+			results->newIEEE(ethernetByteSize); //TODO: fix size
 		}
-
-//int test = (int)packet[6]*pow(255, 5) + packet[7]*pow(255, 4) + packet[8]*pow(255, 3) + packet[9]*pow(255, 2) + packet[10]*pow(255, 1) + packet[11];
 
 		uint8_t MAC_dest = packet[1] >> 2; //first 6 bits
 		uint8_t MAC_src = (((uint8_t)packet[1] & 3) << 4) | (packet[2] >> 4);
 
     results->newSrcMac(MAC_src);
     results->newDstMac(MAC_dest);
-
-
-
-
 		printf("\n\n");
 }
-
 
 
 void process_network_ipv4(const u_char *datagram, resultsC* results, size_t data_length)
@@ -82,11 +72,18 @@ void process_network_ipv4(const u_char *datagram, resultsC* results, size_t data
 	//think the assignment wants length of ip datagram to be put on this
 	results->newIPv4(length);
 
+	//check if more fragment bit set
+//	if((packet[start + 6] & 32) == 32){
+//		results->incrementFrag();
+
+	int testbit = ((datagram[6] & 32) == 32);
+	if (testbit) results->incrementFragCount();
+	printf("%d\n", testbit);
+
 	uint16_t transport_protocol = (uint16_t)datagram[9];
 
 	//on transport layer we call it a packet i think
 	u_char* packet = (u_char*)malloc(data_length* sizeof(u_char));
-
 
 	uint8_t header_length = datagram[0] & 0xF;
 
@@ -97,7 +94,7 @@ void process_network_ipv4(const u_char *datagram, resultsC* results, size_t data
 	//ICMP
 	if (transport_protocol == 1)
 	{
-
+		results->newICMP(length - 8);
 	}
 
 	//TCP
@@ -115,20 +112,15 @@ void process_network_ipv4(const u_char *datagram, resultsC* results, size_t data
 	//...?
 	else
 	{
-
+    results->newOtherNetwork(length - 8);
 	}
-
-
-
 }
 
 
 void process_transport_tcp(const u_char* packet, resultsC* results, int length)
 {
-	//uint8_t t = (int)(packet[12] - (packet[12]%16)) / 4;
 	uint8_t data_offset = packet[12] >> 4;
 	results->newTCP(length - data_offset);
-
 
 	uint16_t src = ((uint16_t)packet[0] << 8) | packet[1];
 	uint16_t dst = ((uint16_t)packet[2] << 8) | packet[3];
@@ -147,7 +139,6 @@ void process_transport_tcp(const u_char* packet, resultsC* results, int length)
 
 void process_transport_udp(const u_char* packet, resultsC* results, int length)
 {
-
 	//8 bit header doesn't count i think idk
 	results->newUDP(length - 8);
 	
