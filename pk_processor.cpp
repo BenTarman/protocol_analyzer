@@ -3,6 +3,7 @@
 //
 
 #include "packetstats.h"
+#include <boost/format.hpp>
 
 void process_network_ipv4(const u_char*, resultsC*, size_t);
 void process_transport_tcp(const u_char*, resultsC*, int);
@@ -32,22 +33,28 @@ void pk_processor(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *
 	int MAC_src = (packet[6] * 1280) + (packet[7] * 1024) + 
 		(packet[8] * 768) + (packet[9] * 512) + (packet[10] * 256) + packet[11];
 
-		
 		int src1 = packet[6];
 		int src2 = packet[7];
 		int src3 = packet[8];
 		int src4 = packet[9];
 		int src5 = packet[10];
 		int src6 = packet[11];
-    
-		TRACE << "\tSource MAC = " << std::hex 
-			<< src1 << ":" << std::hex
-			<< src2 << ":" << std::hex
-			<< src3 << ":" << std::hex
-			<< src4 << ":" << std::hex
-			<< src5 << ":" << std::hex
-			<< src6;
+		int dst1 = packet[0];
+		int dst2 = packet[1];
+		int dst3 = packet[2];
+		int dst4 = packet[3];
+		int dst5 = packet[4];
+		int dst6 = packet[5];
 
+		std::string srchex = (boost::format("%x:%x:%x:%x:%x:%x") % src1 % 
+				src2 % src3 % src4 % src5 % src6).str();
+		TRACE << "\tSource MAC = " << srchex;
+    
+		std::string dsthex = (boost::format("%x:%x:%x:%x:%x:%x") % dst1 % 
+				dst2 % dst3 % dst4 % dst5 % dst6).str();
+		TRACE << "\tDestination MAC = " << dsthex;
+
+		/*
 		int dst1 = packet[0];
 		int dst2 = packet[1];
 		int dst3 = packet[2];
@@ -62,6 +69,7 @@ void pk_processor(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *
 			<< dst4 << ":" << std::hex
 			<< dst5 << ":" << std::hex
 			<< dst6;
+			*/
 
     results->newDstMac(MAC_dest);
     results->newSrcMac(MAC_src);
@@ -98,13 +106,14 @@ void pk_processor(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *
 			}
 			else if (ethernetByteSize == 2054)
 			{
+				TRACE << "\tPacket is ARP";
 				results->newARP(pkthdr->len);
-
 			}
 
 			//IPv6
 			else if(ethernetByteSize == 34525)
 			{
+				TRACE << "\tPacket is IPv6";
 				results->newIPv6(pkthdr->len);
 			}
 
@@ -164,6 +173,12 @@ void process_network_ipv4(const u_char *datagram, resultsC* results, size_t data
 	TRACE	 << "\tDestination IP address is " << dststring;
 	
 
+
+	int flags = (uint16_t)(datagram[6] << 8) | datagram[7];
+
+	
+	TRACE	 << "\tipFlags = " << std::to_string(flags);
+
 	int total_length = (uint16_t)(datagram[2] << 8) | datagram[3];
 
 	//check if more fragment bit set
@@ -192,6 +207,7 @@ void process_network_ipv4(const u_char *datagram, resultsC* results, size_t data
 	//ICMP
 	if (transport_protocol == 1)
 	{
+		TRACE << "Packet is ICMP";
 		results->newICMP(data_length);
 	}
 
@@ -219,7 +235,7 @@ void process_network_ipv4(const u_char *datagram, resultsC* results, size_t data
 void process_transport_tcp(const u_char* packet, resultsC* results, int length)
 {
 
-	TRACE << "\t Packet is TCP";
+	TRACE << "Packet is TCP";
 
 	int src = ((uint16_t)packet[0] << 8) | packet[1];
 	int dst = ((uint16_t)packet[2] << 8) | packet[3];
@@ -228,8 +244,8 @@ void process_transport_tcp(const u_char* packet, resultsC* results, int length)
 	results->newSrcTCP(src);
 	results->newDstTCP(dst);
 
-	TRACE << "\tSource port #" << std::to_string(src);
-	TRACE << "\tDestination port #" << std::to_string(dst);
+	TRACE << "Source port #" << std::to_string(src);
+	TRACE << "Destination port #" << std::to_string(dst);
 
 	//get syn and fin bits and increment if exist
 	uint8_t syn_bit = packet[13] & 0x02;
@@ -237,13 +253,15 @@ void process_transport_tcp(const u_char* packet, resultsC* results, int length)
 	if (syn_bit) results->incrementSynCount();
 	if (fin_bit) results->incrementFinCount();
 	
-	if (syn_bit) TRACE << "\tSYN bit set";
-	if (fin_bit) TRACE << "\tFIN bit set";
+	if (syn_bit) TRACE << "SYN bit set";
+	if (fin_bit) TRACE << "FIN bit set";
 }
 
 
 void process_transport_udp(const u_char* packet, resultsC* results, int length)
 {
+	TRACE << "Packet is UDP";
+
 	//8 bit header doesn't count i think idk
 	results->newUDP(length);
 	
@@ -253,6 +271,9 @@ void process_transport_udp(const u_char* packet, resultsC* results, int length)
 	//place source and destination port numbers in results
 	results->newSrcUDP(src);
 	results->newDstUDP(dst);
+	
+	TRACE << "Source port #" << std::to_string(src);
+	TRACE << "Destination port #" << std::to_string(dst);
 }
 
 
